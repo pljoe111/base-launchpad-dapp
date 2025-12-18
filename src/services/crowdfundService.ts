@@ -129,6 +129,8 @@ export interface CrowdfundService {
   createDraftCampaign(input: CampaignDraftInput): Promise<Campaign>;
   updateDraftCampaign(id: string, patch: Partial<CampaignDraftInput>): Promise<Campaign>;
   publishCampaign(id: string): Promise<Campaign>;
+  closeCampaignEarly(id: string): Promise<Campaign>;
+  deleteCampaign(id: string): Promise<void>;
 
   // Updates
   listUpdates(campaignId: string): Promise<CampaignUpdate[]>;

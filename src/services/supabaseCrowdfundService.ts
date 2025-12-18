@@ -329,6 +329,29 @@ export function createSupabaseCrowdfundService(chainAdapter: ChainAdapter): Crow
       return mapCampaign(data);
     },
 
+    async closeCampaignEarly(id: string): Promise<Campaign> {
+      const { data, error } = await supabase
+        .from("campaigns")
+        .update({
+          deadline_at: new Date().toISOString(),
+        })
+        .eq("id", id)
+        .select()
+        .single();
+
+      if (error) throw error;
+      return mapCampaign(data);
+    },
+
+    async deleteCampaign(id: string): Promise<void> {
+      const { error } = await supabase
+        .from("campaigns")
+        .delete()
+        .eq("id", id);
+
+      if (error) throw error;
+    },
+
     // ============= UPDATES =============
 
     async listUpdates(campaignId: string): Promise<CampaignUpdate[]> {

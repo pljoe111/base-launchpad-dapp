@@ -21,6 +21,8 @@ export default function Dashboard() {
   const [linkingWallet, setLinkingWallet] = useState(false);
 
   const [publishingId, setPublishingId] = useState<string | null>(null);
+  const [closingId, setClosingId] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   const [activeUpdateCampaign, setActiveUpdateCampaign] = useState<string | null>(null);
   const [updateTitle, setUpdateTitle] = useState("");
@@ -126,6 +128,42 @@ export default function Dashboard() {
       toast({ title: "Error", description: message, variant: "destructive" });
     } finally {
       setPostingUpdate(false);
+    }
+  };
+
+  const handleCloseCampaign = async (campaignId: string) => {
+    if (!service) return;
+    if (!confirm("Are you sure you want to close this campaign early? This cannot be undone.")) return;
+
+    setClosingId(campaignId);
+    try {
+      await service.closeCampaignEarly(campaignId);
+      const updated = await service.listMyCampaigns();
+      setCampaigns(updated);
+      toast({ title: "Campaign closed" });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Failed to close campaign";
+      toast({ title: "Error", description: message, variant: "destructive" });
+    } finally {
+      setClosingId(null);
+    }
+  };
+
+  const handleDeleteCampaign = async (campaignId: string) => {
+    if (!service) return;
+    if (!confirm("Are you sure you want to delete this campaign? This cannot be undone.")) return;
+
+    setDeletingId(campaignId);
+    try {
+      await service.deleteCampaign(campaignId);
+      const updated = await service.listMyCampaigns();
+      setCampaigns(updated);
+      toast({ title: "Campaign deleted" });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Failed to delete campaign";
+      toast({ title: "Error", description: message, variant: "destructive" });
+    } finally {
+      setDeletingId(null);
     }
   };
 
@@ -259,31 +297,58 @@ export default function Dashboard() {
                           >
                             {campaign.isPublished ? "Published" : "Draft"}
                           </span>
+                          {campaign.isPublished && new Date(campaign.deadlineAt) < new Date() && (
+                            <span className="text-xs px-2 py-0.5 rounded bg-destructive/20 text-destructive">
+                              Ended
+                            </span>
+                          )}
                         </div>
                       </div>
 
                       <div className="flex flex-col gap-2">
                         {!campaign.isPublished && (
-                          <Button
-                            size="sm"
-                            onClick={() => handlePublish(campaign.id)}
-                            disabled={publishingId === campaign.id}
-                          >
-                            {publishingId === campaign.id ? "Publishing..." : "Publish"}
-                          </Button>
+                          <>
+                            <Button
+                              size="sm"
+                              onClick={() => handlePublish(campaign.id)}
+                              disabled={publishingId === campaign.id}
+                            >
+                              {publishingId === campaign.id ? "Publishing..." : "Publish"}
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="destructive"
+                              onClick={() => handleDeleteCampaign(campaign.id)}
+                              disabled={deletingId === campaign.id}
+                            >
+                              {deletingId === campaign.id ? "Deleting..." : "Delete"}
+                            </Button>
+                          </>
                         )}
                         {campaign.isPublished && (
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() =>
-                              setActiveUpdateCampaign(
-                                activeUpdateCampaign === campaign.id ? null : campaign.id
-                              )
-                            }
-                          >
-                            {activeUpdateCampaign === campaign.id ? "Cancel" : "Post Update"}
-                          </Button>
+                          <>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() =>
+                                setActiveUpdateCampaign(
+                                  activeUpdateCampaign === campaign.id ? null : campaign.id
+                                )
+                              }
+                            >
+                              {activeUpdateCampaign === campaign.id ? "Cancel" : "Post Update"}
+                            </Button>
+                            {new Date(campaign.deadlineAt) > new Date() && (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => handleCloseCampaign(campaign.id)}
+                                disabled={closingId === campaign.id}
+                              >
+                                {closingId === campaign.id ? "Closing..." : "Close Early"}
+                              </Button>
+                            )}
+                          </>
                         )}
                       </div>
                     </div>
