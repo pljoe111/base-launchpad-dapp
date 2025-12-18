@@ -22,14 +22,14 @@ export interface Wallet {
 export interface Campaign {
   id: string;
   creatorUserId: string;
-  creatorWalletAddress: string;
+  campaignIndex: number;
+  campaignDepositAddress: string;
   title: string;
   slug: string;
   summary: string | null;
   descriptionMd: string | null;
   coverImageUrl: string | null;
   chainId: number;
-  campaignContractAddress: string | null;
   currencyAddress: string;
   goalAmountWei: string;
   minPledgeWei: string;
@@ -45,7 +45,6 @@ export interface CampaignDraftInput {
   summary?: string;
   descriptionMd?: string;
   coverImageUrl?: string;
-  creatorWalletAddress: string;
   goalAmountWei: string;
   minPledgeWei?: string;
   deadlineAt: string;
@@ -79,26 +78,26 @@ export const USDC_CONTRACT_BASE = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913";
 export interface ChainAdapter {
   getOnchainCampaignState(input: {
     chainId: number;
-    campaignContractAddress: string;
+    campaignDepositAddress: string;
     currencyAddress: string;
     goalAmountUsdc: string;
     deadlineAt: string;
   }): Promise<OnchainCampaignState>;
 
   getUserContribution(input: {
-    campaignContractAddress: string;
+    campaignDepositAddress: string;
     userWalletAddress: string;
   }): Promise<{ amountUsdc: string }>;
 
   // Pledge removed - now done via direct USDC transfers
 
   claimRefund(input: {
-    campaignContractAddress: string;
+    campaignDepositAddress: string;
     fromAddress: string;
   }): Promise<{ txHash: string }>;
 
   finalize(input: {
-    campaignContractAddress: string;
+    campaignDepositAddress: string;
     fromAddress: string;
   }): Promise<{ txHash: string }>;
 
@@ -139,26 +138,26 @@ export interface CrowdfundService {
   // On-chain (delegated to ChainAdapter)
   getOnchainCampaignState(input: {
     chainId: number;
-    campaignContractAddress: string;
+    campaignDepositAddress: string;
     currencyAddress: string;
     goalAmountUsdc: string;
     deadlineAt: string;
   }): Promise<OnchainCampaignState>;
 
   getUserContribution(input: {
-    campaignContractAddress: string;
+    campaignDepositAddress: string;
     userWalletAddress: string;
   }): Promise<{ amountUsdc: string }>;
 
   // Pledge removed - users send USDC directly to campaign wallet
 
   claimRefund(input: {
-    campaignContractAddress: string;
+    campaignDepositAddress: string;
     fromAddress: string;
   }): Promise<{ txHash: string }>;
 
   finalize(input: {
-    campaignContractAddress: string;
+    campaignDepositAddress: string;
     fromAddress: string;
   }): Promise<{ txHash: string }>;
 

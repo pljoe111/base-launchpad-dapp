@@ -7,14 +7,12 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
-import type { Wallet } from "@/services/crowdfundService";
 
 export default function NewCampaign() {
   const { service, session, loading: serviceLoading } = useService();
   const navigate = useNavigate();
   const { toast } = useToast();
 
-  const [wallets, setWallets] = useState<Wallet[]>([]);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
 
@@ -35,19 +33,7 @@ export default function NewCampaign() {
 
   useEffect(() => {
     if (!service || serviceLoading || !session) return;
-
-    const fetchWallets = async () => {
-      try {
-        const data = await service.listMyWallets();
-        setWallets(data);
-      } catch (err) {
-        console.error("Failed to fetch wallets:", err);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchWallets();
+    setLoading(false);
   }, [service, serviceLoading, session]);
 
   useEffect(() => {
@@ -63,16 +49,6 @@ export default function NewCampaign() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!service) return;
-
-    const primaryWallet = wallets.find((w) => w.isPrimary) || wallets[0];
-    if (!primaryWallet) {
-      toast({
-        title: "No wallet linked",
-        description: "Please link a wallet in your dashboard first.",
-        variant: "destructive",
-      });
-      return;
-    }
 
     if (!title || !slug || !goalEth || !deadlineDays) {
       toast({ title: "Please fill in all required fields", variant: "destructive" });
@@ -93,7 +69,6 @@ export default function NewCampaign() {
         summary: summary || undefined,
         descriptionMd: description || undefined,
         coverImageUrl: coverUrl || undefined,
-        creatorWalletAddress: primaryWallet.address,
         goalAmountWei,
         minPledgeWei,
         deadlineAt,
@@ -118,22 +93,6 @@ export default function NewCampaign() {
             {Array.from({ length: 5 }).map((_, i) => (
               <div key={i} className="skeleton-pulse h-10 w-full" />
             ))}
-          </div>
-        </div>
-      </Layout>
-    );
-  }
-
-  if (wallets.length === 0) {
-    return (
-      <Layout>
-        <div className="container py-8 max-w-2xl">
-          <h1 className="text-xl font-semibold mb-6">Create Campaign</h1>
-          <div className="card-surface p-6 text-center">
-            <p className="text-muted-foreground mb-4">
-              You need to link a wallet before creating a campaign.
-            </p>
-            <Button onClick={() => navigate("/dashboard")}>Go to Dashboard</Button>
           </div>
         </div>
       </Layout>

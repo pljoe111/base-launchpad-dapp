@@ -2,3 +2,6 @@ project_id = "esptrufcfhcdxhumyyxd"
 
 [functions.get-usdc-balance]
 verify_jwt = false
+
+[functions.derive-campaign-wallet]
+verify_jwt = true
