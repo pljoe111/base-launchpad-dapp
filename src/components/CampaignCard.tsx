@@ -23,15 +23,15 @@ export function CampaignCard({ campaign }: CampaignCardProps) {
       className="card-surface p-4 hover:bg-surface-hover transition-colors group block"
     >
       {campaign.coverImageUrl ? (
-        <div className="aspect-video rounded overflow-hidden mb-3 bg-muted">
+        <div className="aspect-video rounded overflow-hidden mb-3 bg-white">
           <img
             src={campaign.coverImageUrl}
             alt={campaign.title}
-            className="w-full h-full object-cover"
+            className="w-full h-full object-contain"
           />
         </div>
       ) : (
-        <div className="aspect-video rounded mb-3 bg-muted flex items-center justify-center">
+        <div className="aspect-video rounded mb-3 bg-white flex items-center justify-center">
           <span className="text-muted-foreground text-sm">No image</span>
         </div>
       )}
