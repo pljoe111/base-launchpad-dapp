@@ -64,11 +64,15 @@ export interface CampaignUpdate {
 export type CampaignStatus = "LIVE" | "SUCCESSFUL" | "FAILED" | "FINALIZED";
 
 export interface OnchainCampaignState {
-  totalRaisedWei: string;
+  totalRaisedUsdc: string; // 6 decimals
   status: CampaignStatus;
   isFinalized: boolean;
   backerCount: number;
 }
+
+// USDC has 6 decimals
+export const USDC_DECIMALS = 6;
+export const USDC_CONTRACT_BASE = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913";
 
 // ============= CHAIN ADAPTER INTERFACE =============
 
@@ -77,22 +81,16 @@ export interface ChainAdapter {
     chainId: number;
     campaignContractAddress: string;
     currencyAddress: string;
-    goalAmountWei: string;
+    goalAmountUsdc: string;
     deadlineAt: string;
   }): Promise<OnchainCampaignState>;
 
   getUserContribution(input: {
     campaignContractAddress: string;
     userWalletAddress: string;
-  }): Promise<{ amountWei: string }>;
+  }): Promise<{ amountUsdc: string }>;
 
-  pledge(input: {
-    campaignContractAddress: string;
-    fromAddress: string;
-    amountWei: string;
-    minPledgeWei: string;
-    deadlineAt: string;
-  }): Promise<{ txHash: string }>;
+  // Pledge removed - now done via direct USDC transfers
 
   claimRefund(input: {
     campaignContractAddress: string;
@@ -103,6 +101,9 @@ export interface ChainAdapter {
     campaignContractAddress: string;
     fromAddress: string;
   }): Promise<{ txHash: string }>;
+
+  // Poll balance via edge function
+  getWalletUsdcBalance(walletAddress: string): Promise<string>;
 }
 
 // ============= SERVICE INTERFACE =============
@@ -138,22 +139,16 @@ export interface CrowdfundService {
     chainId: number;
     campaignContractAddress: string;
     currencyAddress: string;
-    goalAmountWei: string;
+    goalAmountUsdc: string;
     deadlineAt: string;
   }): Promise<OnchainCampaignState>;
 
   getUserContribution(input: {
     campaignContractAddress: string;
     userWalletAddress: string;
-  }): Promise<{ amountWei: string }>;
+  }): Promise<{ amountUsdc: string }>;
 
-  pledge(input: {
-    campaignContractAddress: string;
-    fromAddress: string;
-    amountWei: string;
-    minPledgeWei: string;
-    deadlineAt: string;
-  }): Promise<{ txHash: string }>;
+  // Pledge removed - users send USDC directly to campaign wallet
 
   claimRefund(input: {
     campaignContractAddress: string;
@@ -164,6 +159,9 @@ export interface CrowdfundService {
     campaignContractAddress: string;
     fromAddress: string;
   }): Promise<{ txHash: string }>;
+
+  // Balance polling
+  getWalletUsdcBalance(walletAddress: string): Promise<string>;
 }
 
 // ============= TOGGLE =============

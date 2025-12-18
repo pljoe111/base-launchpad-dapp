@@ -1,7 +1,8 @@
+import { supabase } from "@/integrations/supabase/client";
 import type { ChainAdapter, OnchainCampaignState, CampaignStatus } from "./crowdfundService";
 
 interface MockCampaignState {
-  totalRaisedWei: bigint;
+  totalRaisedUsdc: bigint; // 6 decimals
   backerCount: number;
   contributions: Map<string, bigint>;
   isFinalized: boolean;
@@ -13,7 +14,7 @@ const campaignStates = new Map<string, MockCampaignState>();
 function getOrCreateState(address: string): MockCampaignState {
   if (!campaignStates.has(address)) {
     campaignStates.set(address, {
-      totalRaisedWei: BigInt(0),
+      totalRaisedUsdc: BigInt(0),
       backerCount: 0,
       contributions: new Map(),
       isFinalized: false,
@@ -23,8 +24,8 @@ function getOrCreateState(address: string): MockCampaignState {
 }
 
 function deriveStatus(
-  totalRaisedWei: bigint,
-  goalAmountWei: bigint,
+  totalRaisedUsdc: bigint,
+  goalAmountUsdc: bigint,
   deadlineAt: Date,
   isFinalized: boolean
 ): CampaignStatus {
@@ -38,7 +39,7 @@ function deriveStatus(
     return "LIVE";
   }
 
-  if (totalRaisedWei >= goalAmountWei) {
+  if (totalRaisedUsdc >= goalAmountUsdc) {
     return "SUCCESSFUL";
   }
 
@@ -62,62 +63,31 @@ export function createMockChainAdapter(): ChainAdapter {
       await simulateLatency();
 
       const state = getOrCreateState(input.campaignContractAddress);
-      const goalAmountWei = BigInt(input.goalAmountWei);
+      const goalAmountUsdc = BigInt(input.goalAmountUsdc);
       const deadlineAt = new Date(input.deadlineAt);
 
       const status = deriveStatus(
-        state.totalRaisedWei,
-        goalAmountWei,
+        state.totalRaisedUsdc,
+        goalAmountUsdc,
         deadlineAt,
         state.isFinalized
       );
 
       return {
-        totalRaisedWei: state.totalRaisedWei.toString(),
+        totalRaisedUsdc: state.totalRaisedUsdc.toString(),
         status,
         isFinalized: state.isFinalized,
         backerCount: state.backerCount,
       };
     },
 
-    async getUserContribution(input): Promise<{ amountWei: string }> {
+    async getUserContribution(input): Promise<{ amountUsdc: string }> {
       await simulateLatency();
 
       const state = getOrCreateState(input.campaignContractAddress);
       const contribution = state.contributions.get(input.userWalletAddress.toLowerCase()) ?? BigInt(0);
 
-      return { amountWei: contribution.toString() };
-    },
-
-    async pledge(input): Promise<{ txHash: string }> {
-      await simulateLatency();
-
-      const amountWei = BigInt(input.amountWei);
-      const minPledgeWei = BigInt(input.minPledgeWei);
-      const deadlineAt = new Date(input.deadlineAt);
-      const now = new Date();
-
-      if (amountWei < minPledgeWei) {
-        throw new Error(`Pledge amount must be at least ${minPledgeWei.toString()} wei`);
-      }
-
-      if (now >= deadlineAt) {
-        throw new Error("Campaign deadline has passed");
-      }
-
-      const state = getOrCreateState(input.campaignContractAddress);
-      const fromAddress = input.fromAddress.toLowerCase();
-
-      const previousContribution = state.contributions.get(fromAddress) ?? BigInt(0);
-
-      if (previousContribution === BigInt(0)) {
-        state.backerCount += 1;
-      }
-
-      state.contributions.set(fromAddress, previousContribution + amountWei);
-      state.totalRaisedWei += amountWei;
-
-      return { txHash: generateTxHash() };
+      return { amountUsdc: contribution.toString() };
     },
 
     async claimRefund(): Promise<{ txHash: string }> {
@@ -137,6 +107,20 @@ export function createMockChainAdapter(): ChainAdapter {
       state.isFinalized = true;
 
       return { txHash: generateTxHash() };
+    },
+
+    async getWalletUsdcBalance(walletAddress: string): Promise<string> {
+      // Call the edge function to get real USDC balance
+      const { data, error } = await supabase.functions.invoke("get-usdc-balance", {
+        body: { walletAddress },
+      });
+
+      if (error) {
+        console.error("Error fetching USDC balance:", error);
+        throw new Error("Failed to fetch USDC balance");
+      }
+
+      return data.balance;
     },
   };
 }
