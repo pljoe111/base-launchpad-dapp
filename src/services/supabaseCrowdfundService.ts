@@ -48,14 +48,14 @@ function mapWallet(row: {
 function mapCampaign(row: {
   id: string;
   creator_user_id: string;
-  creator_wallet_address: string;
+  campaign_index: number;
+  campaign_deposit_address: string;
   title: string;
   slug: string;
   summary: string | null;
   description_md: string | null;
   cover_image_url: string | null;
   chain_id: number;
-  campaign_contract_address: string | null;
   currency_address: string;
   goal_amount_wei: number;
   min_pledge_wei: number;
@@ -67,14 +67,14 @@ function mapCampaign(row: {
   return {
     id: row.id,
     creatorUserId: row.creator_user_id,
-    creatorWalletAddress: row.creator_wallet_address,
+    campaignIndex: row.campaign_index,
+    campaignDepositAddress: row.campaign_deposit_address,
     title: row.title,
     slug: row.slug,
     summary: row.summary,
     descriptionMd: row.description_md,
     coverImageUrl: row.cover_image_url,
     chainId: row.chain_id,
-    campaignContractAddress: row.campaign_contract_address,
     currencyAddress: row.currency_address,
     goalAmountWei: row.goal_amount_wei.toString(),
     minPledgeWei: row.min_pledge_wei.toString(),
@@ -260,11 +260,12 @@ export function createSupabaseCrowdfundService(chainAdapter: ChainAdapter): Crow
       const { data: sessionData } = await supabase.auth.getSession();
       if (!sessionData.session?.user) throw new Error("Not authenticated");
 
+      // 1. Insert campaign with placeholder deposit address (will be updated after deriving)
       const { data, error } = await supabase
         .from("campaigns")
         .insert([{
           creator_user_id: sessionData.session.user.id,
-          creator_wallet_address: input.creatorWalletAddress.toLowerCase(),
+          campaign_deposit_address: "0x0000000000000000000000000000000000000000", // placeholder
           title: input.title,
           slug: input.slug.toLowerCase().replace(/\s+/g, "-"),
           summary: input.summary ?? null,
@@ -280,7 +281,33 @@ export function createSupabaseCrowdfundService(chainAdapter: ChainAdapter): Crow
         .single();
 
       if (error) throw error;
-      return mapCampaign(data);
+
+      // 2. Call edge function to derive wallet from campaign_index
+      const { data: walletData, error: walletError } = await supabase.functions.invoke(
+        'derive-campaign-wallet',
+        { body: { campaign_index: data.campaign_index } }
+      );
+
+      if (walletError) {
+        console.error('Failed to derive campaign wallet:', walletError);
+        // Don't fail the campaign creation, but log the error
+        return mapCampaign(data);
+      }
+
+      // 3. Update campaign with derived address
+      const { data: updatedData, error: updateError } = await supabase
+        .from("campaigns")
+        .update({ campaign_deposit_address: walletData.address })
+        .eq("id", data.id)
+        .select()
+        .single();
+
+      if (updateError) {
+        console.error('Failed to update campaign deposit address:', updateError);
+        return mapCampaign(data);
+      }
+
+      return mapCampaign(updatedData);
     },
 
     async updateDraftCampaign(id: string, patch: Partial<CampaignDraftInput>): Promise<Campaign> {
@@ -291,7 +318,6 @@ export function createSupabaseCrowdfundService(chainAdapter: ChainAdapter): Crow
       if (patch.summary !== undefined) updateData.summary = patch.summary;
       if (patch.descriptionMd !== undefined) updateData.description_md = patch.descriptionMd;
       if (patch.coverImageUrl !== undefined) updateData.cover_image_url = patch.coverImageUrl;
-      if (patch.creatorWalletAddress !== undefined) updateData.creator_wallet_address = patch.creatorWalletAddress.toLowerCase();
       if (patch.goalAmountWei !== undefined) updateData.goal_amount_wei = patch.goalAmountWei;
       if (patch.minPledgeWei !== undefined) updateData.min_pledge_wei = patch.minPledgeWei;
       if (patch.deadlineAt !== undefined) updateData.deadline_at = patch.deadlineAt;
@@ -310,17 +336,10 @@ export function createSupabaseCrowdfundService(chainAdapter: ChainAdapter): Crow
     },
 
     async publishCampaign(id: string): Promise<Campaign> {
-      // Generate a mock contract address on publish
-      const mockContractAddress = "0x" + Array.from(
-        crypto.getRandomValues(new Uint8Array(20))
-      ).map((b) => b.toString(16).padStart(2, "0")).join("");
-
+      // Wallet address is already assigned at creation, just publish
       const { data, error } = await supabase
         .from("campaigns")
-        .update({
-          is_published: true,
-          campaign_contract_address: mockContractAddress,
-        })
+        .update({ is_published: true })
         .eq("id", id)
         .select()
         .single();

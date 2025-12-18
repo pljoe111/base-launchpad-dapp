@@ -44,10 +44,10 @@ export default function CampaignDetail() {
         const updatesData = await service.listUpdates(campaignData.id);
         setUpdates(updatesData);
 
-        if (campaignData.isPublished && campaignData.campaignContractAddress) {
+        if (campaignData.isPublished && campaignData.campaignDepositAddress) {
           const state = await service.getOnchainCampaignState({
             chainId: campaignData.chainId,
-            campaignContractAddress: campaignData.campaignContractAddress,
+            campaignDepositAddress: campaignData.campaignDepositAddress,
             currencyAddress: campaignData.currencyAddress,
             goalAmountUsdc: campaignData.goalAmountWei, // Using Wei field for USDC amount
             deadlineAt: campaignData.deadlineAt,
@@ -60,7 +60,7 @@ export default function CampaignDetail() {
             const primaryWallet = wallets.find((w) => w.isPrimary) || wallets[0];
             if (primaryWallet) {
               const contrib = await service.getUserContribution({
-                campaignContractAddress: campaignData.campaignContractAddress,
+                campaignDepositAddress: campaignData.campaignDepositAddress,
                 userWalletAddress: primaryWallet.address,
               });
               setUserContribution(contrib.amountUsdc);
@@ -77,10 +77,10 @@ export default function CampaignDetail() {
 
   // Poll wallet balance for incoming USDC
   const pollBalance = useCallback(async () => {
-    if (!service || !campaign?.campaignContractAddress) return;
+    if (!service || !campaign?.campaignDepositAddress) return;
 
     try {
-      const balance = await service.getWalletUsdcBalance(campaign.campaignContractAddress);
+      const balance = await service.getWalletUsdcBalance(campaign.campaignDepositAddress);
       setWalletBalance(balance);
 
       // Check if balance increased (new pledge detected)
@@ -102,11 +102,11 @@ export default function CampaignDetail() {
     } catch (err) {
       console.error("Failed to poll balance:", err);
     }
-  }, [service, campaign?.campaignContractAddress, toast, fetchData]);
+  }, [service, campaign?.campaignDepositAddress, toast, fetchData]);
 
   // Start/stop polling
   useEffect(() => {
-    if (campaign?.isPublished && campaign.campaignContractAddress && chainState?.status === "LIVE") {
+    if (campaign?.isPublished && campaign.campaignDepositAddress && chainState?.status === "LIVE") {
       setIsPolling(true);
       // Initial fetch
       pollBalance();
@@ -121,7 +121,7 @@ export default function CampaignDetail() {
       }
       setIsPolling(false);
     };
-  }, [campaign?.isPublished, campaign?.campaignContractAddress, chainState?.status, pollBalance]);
+  }, [campaign?.isPublished, campaign?.campaignDepositAddress, chainState?.status, pollBalance]);
 
   useEffect(() => {
     if (!serviceLoading) {
@@ -130,7 +130,7 @@ export default function CampaignDetail() {
   }, [serviceLoading, fetchData]);
 
   const handleFinalize = async () => {
-    if (!service || !campaign || !campaign.campaignContractAddress) return;
+    if (!service || !campaign || !campaign.campaignDepositAddress) return;
 
     const wallets = await service.listMyWallets();
     const primaryWallet = wallets.find((w) => w.isPrimary) || wallets[0];
@@ -143,7 +143,7 @@ export default function CampaignDetail() {
     setFinalizing(true);
     try {
       const { txHash } = await service.finalize({
-        campaignContractAddress: campaign.campaignContractAddress,
+        campaignDepositAddress: campaign.campaignDepositAddress,
         fromAddress: primaryWallet.address,
       });
 
@@ -220,7 +220,7 @@ export default function CampaignDetail() {
     !chainState.isFinalized;
 
   // Generate QR code data - just the wallet address
-  const qrData = campaign.campaignContractAddress || "";
+  const qrData = campaign.campaignDepositAddress || "";
 
   return (
     <Layout>
@@ -338,7 +338,7 @@ export default function CampaignDetail() {
               )}
 
               {/* QR Code for pledging */}
-              {campaign.isPublished && campaign.campaignContractAddress && chainState?.status === "LIVE" && (
+              {campaign.isPublished && campaign.campaignDepositAddress && chainState?.status === "LIVE" && (
                 <div className="space-y-4">
                   <div className="text-center">
                     <p className="text-sm font-medium mb-3">Send USDC to pledge</p>
@@ -355,7 +355,7 @@ export default function CampaignDetail() {
                   <div className="text-center">
                     <p className="text-xs text-muted-foreground mb-2">Campaign wallet address</p>
                     <code className="text-xs bg-muted px-2 py-1 rounded break-all block">
-                      {campaign.campaignContractAddress}
+                      {campaign.campaignDepositAddress}
                     </code>
                   </div>
 

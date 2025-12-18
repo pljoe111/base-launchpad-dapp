@@ -58,12 +58,12 @@ export type Database = {
       }
       campaigns: {
         Row: {
-          campaign_contract_address: string | null
+          campaign_deposit_address: string
+          campaign_index: number
           chain_id: number
           cover_image_url: string | null
           created_at: string
           creator_user_id: string
-          creator_wallet_address: string
           currency_address: string
           deadline_at: string
           description_md: string | null
@@ -77,12 +77,12 @@ export type Database = {
           updated_at: string
         }
         Insert: {
-          campaign_contract_address?: string | null
+          campaign_deposit_address: string
+          campaign_index?: number
           chain_id?: number
           cover_image_url?: string | null
           created_at?: string
           creator_user_id: string
-          creator_wallet_address: string
           currency_address?: string
           deadline_at: string
           description_md?: string | null
@@ -96,12 +96,12 @@ export type Database = {
           updated_at?: string
         }
         Update: {
-          campaign_contract_address?: string | null
+          campaign_deposit_address?: string
+          campaign_index?: number
           chain_id?: number
           cover_image_url?: string | null
           created_at?: string
           creator_user_id?: string
-          creator_wallet_address?: string
           currency_address?: string
           deadline_at?: string
           description_md?: string | null

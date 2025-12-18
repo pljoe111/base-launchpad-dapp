@@ -62,7 +62,7 @@ export function createMockChainAdapter(): ChainAdapter {
     async getOnchainCampaignState(input): Promise<OnchainCampaignState> {
       await simulateLatency();
 
-      const state = getOrCreateState(input.campaignContractAddress);
+      const state = getOrCreateState(input.campaignDepositAddress);
       const goalAmountUsdc = BigInt(input.goalAmountUsdc);
       const deadlineAt = new Date(input.deadlineAt);
 
@@ -84,7 +84,7 @@ export function createMockChainAdapter(): ChainAdapter {
     async getUserContribution(input): Promise<{ amountUsdc: string }> {
       await simulateLatency();
 
-      const state = getOrCreateState(input.campaignContractAddress);
+      const state = getOrCreateState(input.campaignDepositAddress);
       const contribution = state.contributions.get(input.userWalletAddress.toLowerCase()) ?? BigInt(0);
 
       return { amountUsdc: contribution.toString() };
@@ -98,7 +98,7 @@ export function createMockChainAdapter(): ChainAdapter {
     async finalize(input): Promise<{ txHash: string }> {
       await simulateLatency();
 
-      const state = getOrCreateState(input.campaignContractAddress);
+      const state = getOrCreateState(input.campaignDepositAddress);
 
       if (state.isFinalized) {
         throw new Error("Campaign already finalized");
