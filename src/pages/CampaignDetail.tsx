@@ -234,13 +234,15 @@ export default function CampaignDetail() {
         <div className="grid lg:grid-cols-3 gap-8">
           <div className="lg:col-span-2">
             {campaign.coverImageUrl ? (
-              <img
-                src={campaign.coverImageUrl}
-                alt={campaign.title}
-                className="w-full aspect-video object-cover rounded-lg mb-6"
-              />
+              <div className="w-full aspect-video bg-white rounded-lg mb-6 overflow-hidden">
+                <img
+                  src={campaign.coverImageUrl}
+                  alt={campaign.title}
+                  className="w-full h-full object-contain"
+                />
+              </div>
             ) : (
-              <div className="w-full aspect-video bg-muted rounded-lg mb-6 flex items-center justify-center">
+              <div className="w-full aspect-video bg-white rounded-lg mb-6 flex items-center justify-center">
                 <span className="text-muted-foreground">No cover image</span>
               </div>
             )}
