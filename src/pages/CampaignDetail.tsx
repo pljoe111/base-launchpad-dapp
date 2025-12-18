@@ -1,13 +1,16 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { useParams, Link } from "react-router-dom";
+import { QRCodeSVG } from "qrcode.react";
 import { Layout } from "@/components/Layout";
 import { RefundModal } from "@/components/RefundModal";
 import { Skeleton } from "@/components/Skeleton";
 import { useService } from "@/contexts/ServiceContext";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
+import { USDC_DECIMALS } from "@/services/crowdfundService";
 import type { Campaign, CampaignUpdate, OnchainCampaignState } from "@/services/crowdfundService";
+
+const POLLING_INTERVAL = 5000; // 5 seconds
 
 export default function CampaignDetail() {
   const { slug } = useParams<{ slug: string }>();
@@ -19,10 +22,13 @@ export default function CampaignDetail() {
   const [updates, setUpdates] = useState<CampaignUpdate[]>([]);
   const [userContribution, setUserContribution] = useState<string>("0");
   const [loading, setLoading] = useState(true);
-  const [pledgeAmount, setPledgeAmount] = useState("");
-  const [pledging, setPledging] = useState(false);
   const [showRefundModal, setShowRefundModal] = useState(false);
   const [finalizing, setFinalizing] = useState(false);
+  const [walletBalance, setWalletBalance] = useState<string>("0");
+  const [isPolling, setIsPolling] = useState(false);
+
+  const pollingRef = useRef<NodeJS.Timeout | null>(null);
+  const previousBalanceRef = useRef<string>("0");
 
   const isCreator = campaign && profile && campaign.creatorUserId === profile.id;
 
@@ -43,7 +49,7 @@ export default function CampaignDetail() {
             chainId: campaignData.chainId,
             campaignContractAddress: campaignData.campaignContractAddress,
             currencyAddress: campaignData.currencyAddress,
-            goalAmountWei: campaignData.goalAmountWei,
+            goalAmountUsdc: campaignData.goalAmountWei, // Using Wei field for USDC amount
             deadlineAt: campaignData.deadlineAt,
           });
           setChainState(state);
@@ -57,7 +63,7 @@ export default function CampaignDetail() {
                 campaignContractAddress: campaignData.campaignContractAddress,
                 userWalletAddress: primaryWallet.address,
               });
-              setUserContribution(contrib.amountWei);
+              setUserContribution(contrib.amountUsdc);
             }
           }
         }
@@ -69,52 +75,59 @@ export default function CampaignDetail() {
     }
   }, [service, slug, session]);
 
+  // Poll wallet balance for incoming USDC
+  const pollBalance = useCallback(async () => {
+    if (!service || !campaign?.campaignContractAddress) return;
+
+    try {
+      const balance = await service.getWalletUsdcBalance(campaign.campaignContractAddress);
+      setWalletBalance(balance);
+
+      // Check if balance increased (new pledge detected)
+      const prevBalance = BigInt(previousBalanceRef.current || "0");
+      const newBalance = BigInt(balance);
+
+      if (newBalance > prevBalance && prevBalance > BigInt(0)) {
+        const diff = newBalance - prevBalance;
+        const diffUsdc = Number(diff) / Math.pow(10, USDC_DECIMALS);
+        toast({
+          title: "New pledge received!",
+          description: `+$${diffUsdc.toFixed(2)} USDC`,
+        });
+        // Refresh chain state
+        fetchData();
+      }
+
+      previousBalanceRef.current = balance;
+    } catch (err) {
+      console.error("Failed to poll balance:", err);
+    }
+  }, [service, campaign?.campaignContractAddress, toast, fetchData]);
+
+  // Start/stop polling
+  useEffect(() => {
+    if (campaign?.isPublished && campaign.campaignContractAddress && chainState?.status === "LIVE") {
+      setIsPolling(true);
+      // Initial fetch
+      pollBalance();
+      // Set up interval
+      pollingRef.current = setInterval(pollBalance, POLLING_INTERVAL);
+    }
+
+    return () => {
+      if (pollingRef.current) {
+        clearInterval(pollingRef.current);
+        pollingRef.current = null;
+      }
+      setIsPolling(false);
+    };
+  }, [campaign?.isPublished, campaign?.campaignContractAddress, chainState?.status, pollBalance]);
+
   useEffect(() => {
     if (!serviceLoading) {
       fetchData();
     }
   }, [serviceLoading, fetchData]);
-
-  const handlePledge = async () => {
-    if (!service || !campaign || !campaign.campaignContractAddress || !pledgeAmount) return;
-
-    const wallets = await service.listMyWallets();
-    const primaryWallet = wallets.find((w) => w.isPrimary) || wallets[0];
-
-    if (!primaryWallet) {
-      toast({
-        title: "No wallet linked",
-        description: "Please link a wallet in your dashboard first.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    setPledging(true);
-    try {
-      const amountWei = (parseFloat(pledgeAmount) * 1e18).toString();
-      const { txHash } = await service.pledge({
-        campaignContractAddress: campaign.campaignContractAddress,
-        fromAddress: primaryWallet.address,
-        amountWei,
-        minPledgeWei: campaign.minPledgeWei,
-        deadlineAt: campaign.deadlineAt,
-      });
-
-      toast({
-        title: "Pledge successful!",
-        description: `Transaction: ${txHash.slice(0, 10)}...`,
-      });
-
-      setPledgeAmount("");
-      await fetchData();
-    } catch (err) {
-      const message = err instanceof Error ? err.message : "Pledge failed";
-      toast({ title: "Error", description: message, variant: "destructive" });
-    } finally {
-      setPledging(false);
-    }
-  };
 
   const handleFinalize = async () => {
     if (!service || !campaign || !campaign.campaignContractAddress) return;
@@ -148,9 +161,12 @@ export default function CampaignDetail() {
     }
   };
 
-  const formatEth = (wei: string) => {
-    const eth = Number(wei) / 1e18;
-    return eth.toFixed(eth < 1 ? 4 : 2);
+  const formatUsdc = (amount: string) => {
+    const usdc = Number(amount) / Math.pow(10, USDC_DECIMALS);
+    return usdc.toLocaleString("en-US", {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    });
   };
 
   const formatDate = (dateStr: string) => {
@@ -191,13 +207,8 @@ export default function CampaignDetail() {
   }
 
   const progress = chainState
-    ? Math.min(100, (Number(chainState.totalRaisedWei) / Number(campaign.goalAmountWei)) * 100)
+    ? Math.min(100, (Number(chainState.totalRaisedUsdc) / Number(campaign.goalAmountWei)) * 100)
     : 0;
-
-  const canPledge =
-    campaign.isPublished &&
-    chainState?.status === "LIVE" &&
-    session;
 
   const canRefund =
     chainState?.status === "FAILED" &&
@@ -207,6 +218,9 @@ export default function CampaignDetail() {
     isCreator &&
     chainState?.status === "SUCCESSFUL" &&
     !chainState.isFinalized;
+
+  // Generate QR code data - just the wallet address
+  const qrData = campaign.campaignContractAddress || "";
 
   return (
     <Layout>
@@ -271,13 +285,13 @@ export default function CampaignDetail() {
                     <div className="flex justify-between text-sm mb-1">
                       <span className="text-muted-foreground">Raised</span>
                       <span className="font-mono">
-                        {formatEth(chainState.totalRaisedWei)} ETH
+                        ${formatUsdc(chainState.totalRaisedUsdc)} USDC
                       </span>
                     </div>
                     <div className="flex justify-between text-sm mb-2">
                       <span className="text-muted-foreground">Goal</span>
                       <span className="font-mono">
-                        {formatEth(campaign.goalAmountWei)} ETH
+                        ${formatUsdc(campaign.goalAmountWei)} USDC
                       </span>
                     </div>
                     <div className="h-2 bg-muted rounded-full overflow-hidden">
@@ -310,34 +324,56 @@ export default function CampaignDetail() {
               <div className="text-sm text-muted-foreground mb-4">
                 <p>Deadline: {formatDate(campaign.deadlineAt)}</p>
                 <p className="mt-1">
-                  Min pledge: {formatEth(campaign.minPledgeWei)} ETH
+                  Min pledge: ${formatUsdc(campaign.minPledgeWei)} USDC
                 </p>
               </div>
 
               {Number(userContribution) > 0 && (
                 <div className="text-sm bg-muted p-3 rounded mb-4">
                   <span className="text-muted-foreground">Your pledge: </span>
-                  <span className="font-mono">{formatEth(userContribution)} ETH</span>
+                  <span className="font-mono">${formatUsdc(userContribution)} USDC</span>
                 </div>
               )}
 
-              {canPledge && (
-                <div className="space-y-3">
-                  <Input
-                    type="number"
-                    placeholder="Amount in ETH"
-                    value={pledgeAmount}
-                    onChange={(e) => setPledgeAmount(e.target.value)}
-                    step="0.001"
-                    min="0"
-                  />
-                  <Button
-                    className="w-full"
-                    onClick={handlePledge}
-                    disabled={pledging || !pledgeAmount}
-                  >
-                    {pledging ? "Processing..." : "Pledge"}
-                  </Button>
+              {/* QR Code for pledging */}
+              {campaign.isPublished && campaign.campaignContractAddress && chainState?.status === "LIVE" && (
+                <div className="space-y-4">
+                  <div className="text-center">
+                    <p className="text-sm font-medium mb-3">Send USDC to pledge</p>
+                    <div className="bg-white p-4 rounded-lg inline-block">
+                      <QRCodeSVG
+                        value={qrData}
+                        size={180}
+                        level="H"
+                        includeMargin={false}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="text-center">
+                    <p className="text-xs text-muted-foreground mb-2">Campaign wallet address</p>
+                    <code className="text-xs bg-muted px-2 py-1 rounded break-all block">
+                      {campaign.campaignContractAddress}
+                    </code>
+                  </div>
+
+                  <div className="text-center text-xs text-muted-foreground">
+                    <p className="flex items-center justify-center gap-2">
+                      {isPolling && (
+                        <span className="inline-block w-2 h-2 bg-primary rounded-full animate-pulse" />
+                      )}
+                      Auto-refreshing every 5s
+                    </p>
+                    {walletBalance !== "0" && (
+                      <p className="mt-1">
+                        Wallet balance: ${formatUsdc(walletBalance)} USDC
+                      </p>
+                    )}
+                  </div>
+
+                  <p className="text-xs text-muted-foreground text-center">
+                    Send USDC on Base network only
+                  </p>
                 </div>
               )}
 
@@ -361,12 +397,9 @@ export default function CampaignDetail() {
                 </Button>
               )}
 
-              {!session && chainState?.status === "LIVE" && (
-                <p className="text-sm text-muted-foreground text-center mt-4">
-                  <Link to="/auth" className="text-primary hover:underline">
-                    Sign in
-                  </Link>{" "}
-                  to pledge
+              {!campaign.isPublished && (
+                <p className="text-sm text-muted-foreground text-center">
+                  This campaign is not published yet
                 </p>
               )}
             </div>

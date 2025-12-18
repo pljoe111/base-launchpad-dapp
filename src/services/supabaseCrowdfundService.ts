@@ -367,12 +367,8 @@ export function createSupabaseCrowdfundService(chainAdapter: ChainAdapter): Crow
       return chainAdapter.getOnchainCampaignState(input);
     },
 
-    getUserContribution(input): Promise<{ amountWei: string }> {
+    getUserContribution(input): Promise<{ amountUsdc: string }> {
       return chainAdapter.getUserContribution(input);
-    },
-
-    pledge(input): Promise<{ txHash: string }> {
-      return chainAdapter.pledge(input);
     },
 
     claimRefund(input): Promise<{ txHash: string }> {
@@ -381,6 +377,10 @@ export function createSupabaseCrowdfundService(chainAdapter: ChainAdapter): Crow
 
     finalize(input): Promise<{ txHash: string }> {
       return chainAdapter.finalize(input);
+    },
+
+    getWalletUsdcBalance(walletAddress: string): Promise<string> {
+      return chainAdapter.getWalletUsdcBalance(walletAddress);
     },
   };
 }
